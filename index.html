@@ -32,22 +32,22 @@ main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}.steps{display:flex;g
 const initialState={people:['Игрок 1','Игрок 2','Игрок 3','Игрок 4','Игрок 5','Игрок 6','Игрок 7','Игрок 8'].map((name,i)=>({id:i+1,name})),games:['Кодовые имена','Каркассон','Диксит','Азул','Билет на поезд','Колонизаторы'].map((name,i)=>({id:i+1,name,active:true})),marks:{},mode:2};
 let state=JSON.parse(JSON.stringify(initialState)),nextPerson=9,nextGame=7;
 const $=id=>document.getElementById(id),key=(p,g)=>p+'_'+g;
-let supabase=null,saveTimer=null,applyingRemote=false;
+let dbClient=null,saveTimer=null,applyingRemote=false;
 function setSync(message,isError=false){const el=$('syncStatus');el.textContent=message;el.classList.toggle('error',isError);}
 function normalizeState(s){if(!s||!Array.isArray(s.people)||!Array.isArray(s.games))return null;return {people:s.people,games:s.games,marks:s.marks||{},mode:s.mode===3?3:2};}
 function updateCounters(){nextPerson=Math.max(8,...state.people.map(p=>Number(p.id)||0))+1;nextGame=Math.max(6,...state.games.map(g=>Number(g.id)||0))+1;}
-function scheduleSave(){if(!supabase||applyingRemote)return;clearTimeout(saveTimer);saveTimer=setTimeout(saveState,450);}
-async function saveState(){if(!supabase||applyingRemote)return;const snapshot=JSON.parse(JSON.stringify(state));const {error}=await supabase.from('camp_state').upsert({id:1,state:snapshot,updated_at:new Date().toISOString()},{onConflict:'id'});if(error)setSync('Не удалось сохранить изменения: '+error.message,true);else setSync('Общая база подключена · изменения сохранены');}
+function scheduleSave(){if(!dbClient||applyingRemote)return;clearTimeout(saveTimer);saveTimer=setTimeout(saveState,450);}
+async function saveState(){if(!dbClient||applyingRemote)return;const snapshot=JSON.parse(JSON.stringify(state));const {error}=await dbClient.from('camp_state').upsert({id:1,state:snapshot,updated_at:new Date().toISOString()},{onConflict:'id'});if(error)setSync('Не удалось сохранить изменения: '+error.message,true);else setSync('Общая база подключена · изменения сохранены');}
 async function applyRemote(s){const clean=normalizeState(s);if(!clean)return;applyingRemote=true;state=clean;updateCounters();renderAll();applyingRemote=false;setSync('Общая база подключена · получены изменения участников');}
 async function connectSharedDatabase(){
  const url=window.SUPABASE_URL,keyValue=window.SUPABASE_ANON_KEY;
  if(!url||!keyValue||url.includes('ВСТАВЬТЕ')||keyValue.includes('ВСТАВЬТЕ')){setSync('Нужно заполнить config.js данными проекта Supabase.',true);renderAll();return;}
  if(!window.supabase){setSync('Не загрузилась библиотека подключения. Проверьте интернет.',true);return;}
- supabase=window.supabase.createClient(url,keyValue);
- const {data,error}=await supabase.from('camp_state').select('state').eq('id',1).maybeSingle();
- if(error){supabase=null;setSync('Ошибка базы. Проверьте SQL и ключи: '+error.message,true);return;}
+ dbClient=window.supabase.createClient(url,keyValue);
+ const {data,error}=await dbClient.from('camp_state').select('state').eq('id',1).maybeSingle();
+ if(error){dbClient=null;setSync('Ошибка базы. Проверьте SQL и ключи: '+error.message,true);return;}
  if(data&&data.state){await applyRemote(data.state);}else{await saveState();}
- supabase.channel('camp-state-live').on('postgres_changes',{event:'*',schema:'public',table:'camp_state',filter:'id=eq.1'},payload=>{
+ dbClient.channel('camp-state-live').on('postgres_changes',{event:'*',schema:'public',table:'camp_state',filter:'id=eq.1'},payload=>{
    if(payload.new&&payload.new.state)applyRemote(payload.new.state);
  }).subscribe(status=>{if(status==='SUBSCRIBED')setSync('Общая база подключена · синхронизация включена');});
 }

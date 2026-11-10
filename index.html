@@ -1,4 +1,3 @@
-```
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -62,9 +61,9 @@ th:first-child{background:#E7EFE3}
 <div class="steps"><span class="step"><b>01</b> Участники</span><span class="step"><b>02</b> Коллекция игр</span><span class="step"><b>03</b> Выбор и правила</span><span class="step"><b>04</b> Игровые группы</span></div>
 <div class="sync-status" id="syncStatus">Подключаем общую базу…</div>
 <section class="panel"><div class="panel-head"><div><h2>Кто едет с нами?</h2><div class="muted">Введите имена участников. Можно добавлять и удалять людей; максимум — 12.</div></div><span class="step" id="peopleCount">0 / 12</span></div><div class="people-grid" id="people"></div><div class="add-row"><input class="field" id="personName" placeholder="Имя нового участника" maxlength="24"><button class="btn soft" id="addPerson">＋ Добавить участника</button></div></section>
-<section class="panel"><div class="panel-head"><div><h2>Кто во что хочет играть?</h2><div class="muted">В каждой ячейке можно независимо отметить желание сыграть и знание правил.</div></div><button class="btn ghost" style="display:none;" id="clearMarks">Сбросить отметки</button></div><div class="table-wrap" id="matrix"></div><div class="legend"><span><i class="dot want"></i> Хочу сыграть — ♡</span><span><i class="dot know"></i> Знаю правила — ✓</span><span>Можно отметить оба пункта.</span></div></section>
+<section class="panel"><div class="panel-head"><div><h2>Кто во что хочет играть?</h2><div class="muted">В каждой ячейке можно независимо отметить желание сыграть и знание правил.</div></div><button class="btn ghost" style="display:none;" id="clearMarks">Сбросить отметки</button></div><div class="table-wrap" id="matrix"></div><div class="legend"><span><i class="dot want"></i> Хочу сыграть — ♡</span><span><i class="dot know"></i> Знаю правила — 📖</span><span>Можно отметить оба пункта.</span></div></section>
  <section class="panel"><div class="panel-head"><div><h2>Коллекция настолок</h2><div class="muted">Добавляйте игры заранее или прямо по ходу обсуждения. Для каждой игры можно указать желаемый состав и длительность. Эти параметры будут учитываться при подборе; выключенные игры не попадут в подбор.</div></div><span class="step" id="gameCount">0 игр в ротации</span></div><div class="game-list" id="games"></div><div class="add-row"><input class="field" id="gameName" placeholder="Например, Каркассон" maxlength="40"><button class="btn soft" id="addGame">＋ Добавить игру</button></div></section>
-<section class="panel"><div class="panel-head"><div><h2>Собираем игровые столы</h2><div class="muted">Алгоритм учитывает оптимальный состав и длительность каждой игры; размеры столов могут отличаться. За каждым столом будет хотя бы один знаток правил.</div></div></div><div class="mode-row"><button class="mode selected" data-mode="2">2 стола</button><button class="mode" data-mode="3">3 стола</button><button class="mode" data-mode="4">4 стола</button></div><div class="generate-row"><div class="muted" id="modeHint">Группы будут сбалансированы по размеру.</div><button class="btn primary" id="generate">✦ Подобрать группы</button></div><div class="result" id="result"><div class="empty">После заполнения отметок нажмите «Подобрать группы» — здесь появится план игровых столов.</div></div></section>
+<section class="panel"><div class="panel-head"><div><h2>Собираем игровые столы</h2><div class="muted">Все участники с хотя бы одним голосом обязательно распределяются. Оптимальный состав — пожелание, которое алгоритм может ослабить; для игр на 3 человека допускается 4. За каждым столом будет хотя бы один знаток правил.</div></div></div><div class="mode-row"><button class="mode selected" data-mode="2">2 стола</button><button class="mode" data-mode="3">3 стола</button><button class="mode" data-mode="4">4 стола</button></div><div class="generate-row"><div class="muted" id="modeHint">Группы будут сбалансированы по размеру.</div><button class="btn primary" id="generate">✦ Подобрать группы</button></div><div class="result" id="result"><div class="empty">После заполнения отметок нажмите «Подобрать группы» — здесь появится план игровых столов.</div></div></section>
 <div class="footer">Сделано для долгих вечеров, хороших компаний и ещё одной партии ✦</div>
 </main></div>
 <script>
@@ -92,24 +91,131 @@ async function connectSharedDatabase(){
 }
 function renderPeople(){ $('people').innerHTML=state.people.map(p=>`<div class="person"><span class="avatar">${esc((p.name||'?').trim().slice(0,1).toUpperCase())}</span><input aria-label="Имя участника" maxlength="24" value="${esc(p.name)}" data-person="${p.id}"><button class="delete-person" type="button" title="Удалить участника" aria-label="Удалить ${esc(p.name)}" data-delete-person="${p.id}">×</button></div>`).join('');$('peopleCount').textContent=`${state.people.length} / 12`;document.querySelectorAll('[data-person]').forEach(el=>el.oninput=e=>{const p=state.people.find(x=>x.id==e.target.dataset.person);if(!p)return;p.name=e.target.value;e.target.parentElement.querySelector('.avatar').textContent=(p.name.trim()[0]||'?').toUpperCase();scheduleSave();});document.querySelectorAll('[data-delete-person]').forEach(b=>b.onclick=()=>{const id=Number(b.dataset.deletePerson);state.people=state.people.filter(p=>Number(p.id)!==id);Object.keys(state.marks).forEach(k=>{if(k.startsWith(id+'_'))delete state.marks[k];});$('result').innerHTML='<div class="empty">Состав участников изменился. Подберите группы заново.</div>';renderPeople();renderMatrix();scheduleSave();});$('addPerson').disabled=state.people.length>=12;$('personName').disabled=state.people.length>=12;}
 function renderGames(){const active=state.games.filter(g=>g.active).length;$('gameCount').textContent=`${active} из ${state.games.length} в ротации`;$('games').innerHTML=state.games.map(g=>`<div class="game-chip ${g.active?'':'off'}"><span>${esc(g.name)}</span><button title="${g.active?'Убрать из':'Вернуть в'} ротацию" data-toggle="${g.id}">${g.active?'●':'○'}</button><button class="remove" title="Удалить игру" data-remove="${g.id}">×</button><div class="game-meta"><label>Оптимально игроков <select aria-label="Оптимальный состав для ${esc(g.name)}" data-optimal="${g.id}"><option value="0" ${!g.optimalPlayers?'selected':''}>Не задан</option>${Array.from({length:12},(_,i)=>i+1).map(n=>`<option value="${n}" ${Number(g.optimalPlayers)===n?'selected':''}>${n}</option>`).join('')}</select></label><label>Длительность <select aria-label="Длительность ${esc(g.name)}" data-duration="${g.id}"><option value="" ${!g.duration?'selected':''}>Не задана</option><option value="short" ${g.duration==='short'?'selected':''}>Короткая</option><option value="normal" ${g.duration==='normal'?'selected':''}>Обычная</option><option value="variable" ${g.duration==='variable'?'selected':''}>Вариативная</option></select></label></div></div>`).join('');document.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>{const g=state.games.find(x=>x.id==b.dataset.toggle);g.active=!g.active;renderGames();renderMatrix();scheduleSave();});document.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{const id=+b.dataset.remove;state.games=state.games.filter(g=>g.id!==id);Object.keys(state.marks).forEach(k=>{if(k.endsWith('_'+id))delete state.marks[k]});renderGames();renderMatrix();scheduleSave();});document.querySelectorAll('[data-optimal]').forEach(el=>el.onchange=()=>{const g=state.games.find(x=>x.id==el.dataset.optimal);if(g)g.optimalPlayers=Number(el.value)||null;scheduleSave();});document.querySelectorAll('[data-duration]').forEach(el=>el.onchange=()=>{const g=state.games.find(x=>x.id==el.dataset.duration);if(g)g.duration=el.value;scheduleSave();});}
-function renderMatrix(){const games=state.games.filter(g=>g.active);if(!games.length){$('matrix').innerHTML='<div class="empty">Добавьте игру или верните игру в ротацию.</div>';return;}if(!state.people.length){$('matrix').innerHTML='<div class="empty">Сначала добавьте участников.</div>';return;}$('matrix').innerHTML=`<table><thead><tr><th>Игра</th>${state.people.map(p=>`<th>${esc(p.name||'Без имени')}</th>`).join('')}</tr></thead><tbody>${games.map(g=>`<tr><td><span class="game-name">${esc(g.name)}</span><span class="game-sub">Отметьте ♡ и/или ✓</span></td>${state.people.map(p=>{const m=state.marks[key(p.id,g.id)]||{};return `<td><div class="cell-actions"><button class="mark want ${m.want?'active':''}" title="Хочу сыграть" aria-label="${esc(p.name)} хочет сыграть в ${esc(g.name)}" data-mark="want" data-p="${p.id}" data-g="${g.id}">♡</button><button class="mark know ${m.know?'active':''}" title="Знаю правила" aria-label="${esc(p.name)} знает правила игры ${esc(g.name)}" data-mark="know" data-p="${p.id}" data-g="${g.id}">✓</button></div></td>`}).join('')}</tr>`).join('')}</tbody></table>`;document.querySelectorAll('[data-mark]').forEach(b=>b.onclick=()=>{const k=key(b.dataset.p,b.dataset.g);state.marks[k]??={};const type=b.dataset.mark;state.marks[k][type]=!state.marks[k][type];renderMatrix();scheduleSave();});}
+function renderMatrix(){const games=state.games.filter(g=>g.active);if(!games.length){$('matrix').innerHTML='<div class="empty">Добавьте игру или верните игру в ротацию.</div>';return;}if(!state.people.length){$('matrix').innerHTML='<div class="empty">Сначала добавьте участников.</div>';return;}$('matrix').innerHTML=`<table><thead><tr><th>Игра</th>${state.people.map(p=>`<th>${esc(p.name||'Без имени')}</th>`).join('')}</tr></thead><tbody>${games.map(g=>`<tr><td><span class="game-name">${esc(g.name)}</span><span class="game-sub">Отметьте ♡ и/или ✓</span></td>${state.people.map(p=>{const m=state.marks[key(p.id,g.id)]||{};return `<td><div class="cell-actions"><button class="mark want ${m.want?'active':''}" title="Хочу сыграть" aria-label="${esc(p.name)} хочет сыграть в ${esc(g.name)}" data-mark="want" data-p="${p.id}" data-g="${g.id}">♡</button><button class="mark know ${m.know?'active':''}" title="Знаю правила" aria-label="${esc(p.name)} знает правила игры ${esc(g.name)}" data-mark="know" data-p="${p.id}" data-g="${g.id}">📖</button></div></td>`}).join('')}</tr>`).join('')}</tbody></table>`;document.querySelectorAll('[data-mark]').forEach(b=>b.onclick=()=>{const k=key(b.dataset.p,b.dataset.g);state.marks[k]??={};const type=b.dataset.mark;state.marks[k][type]=!state.marks[k][type];renderMatrix();scheduleSave();});}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 $('addPerson').onclick=()=>{const name=$('personName').value.trim();if(!name||state.people.length>=12)return;state.people.push({id:nextPerson++,name});$('personName').value='';renderPeople();renderMatrix();scheduleSave();};$('personName').addEventListener('keydown',e=>{if(e.key==='Enter')$('addPerson').click()});
 $('addGame').onclick=()=>{const name=$('gameName').value.trim();if(!name)return;if(state.games.some(g=>g.name.toLowerCase()===name.toLowerCase())){alert('Такая игра уже есть в списке.');return;}state.games.push({id:nextGame++,name,active:true,optimalPlayers:null,duration:''});$('gameName').value='';renderGames();renderMatrix();scheduleSave();};$('gameName').addEventListener('keydown',e=>{if(e.key==='Enter')$('addGame').click()});
 $('clearMarks').onclick=()=>{state.marks={};renderMatrix();$('result').innerHTML='<div class="empty">Отметки сброшены. Заполните таблицу и подберите группы заново.</div>';scheduleSave();};
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{state.mode=+b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('selected',x===b));$('modeHint').textContent='Размеры столов могут быть разными в зависимости от оптимального состава выбранных игр.';scheduleSave();});
 function combinations(arr,k){const out=[];function go(start,cur){if(cur.length===k){out.push(cur.slice());return;}for(let i=start;i<=arr.length-(k-cur.length);i++){cur.push(arr[i]);go(i+1,cur);cur.pop();}}go(0,[]);return out;}
-let lastGeneratedSignature=null,seenGeneratedSignatures=[];
+
+let lastGeneratedSignature=null,seenGeneratedSignatures=[],shownGameCounts={};
 function planSignature(groups){return groups.map(g=>`${g.game.id}:${g.people.slice().sort((a,b)=>a-b).join(',')}`).sort().join('|');}
-function generate(){const games=state.games.filter(g=>g.active),preference=(pid,gid)=>state.marks[key(pid,gid)]||{},people=state.people.filter(p=>games.some(g=>preference(p.id,g.id).want));if(people.length<2){showError('Для подбора нужно минимум два участника, каждый должен поставить ♡ хотя бы у одной активной игры. Участники без голосов в подбор не включаются.');return;}const tableCount=Math.min(state.mode,people.length);if(tableCount<2){showError('Для подбора нужно минимум два участника и два игровых стола.');return;}if(games.length<tableCount){showError(`Для этого режима нужно минимум ${tableCount} активные игры. Сейчас доступно: ${games.length}.`);return;}const ids=people.map(p=>p.id),base=people.length/tableCount;let candidates=[],examined=0;const MAX_EXAMINED=60000;
-function durationScore(groups){let score=0;for(let i=0;i<groups.length;i++)for(let j=i+1;j<groups.length;j++){const a=groups[i].game.duration,b=groups[j].game.duration;if(!a||!b)continue;if(a==='variable'||b==='variable'||a===b)score+=5;else score-=9;}return score;}
-function assign(remaining,groups,usedGames,score){if(examined>=MAX_EXAMINED)return;if(groups.length===tableCount){examined++;const copy=groups.map(x=>({...x,people:x.people.slice()})),finalScore=score+durationScore(copy),signature=planSignature(copy);candidates.push({groups:copy,score:finalScore,signature});if(candidates.length>350){candidates.sort((a,b)=>b.score-a.score);candidates.length=250;}return;}const remainingTables=tableCount-groups.length,anchor=remaining[0];for(const game of games){if(examined>=MAX_EXAMINED)return;if(usedGames.has(game.id))continue;const opt=Number(game.optimalPlayers)||0;let proposed=opt?[opt,opt-1,opt+1,Math.round(base),Math.floor(base),Math.ceil(base)]:[Math.round(base),Math.floor(base),Math.ceil(base)];proposed=[...new Set(proposed)].filter(size=>size>=1&&size<=remaining.length-(remainingTables-1));proposed.sort((a,b)=>{const da=opt?Math.abs(a-opt):Math.abs(a-base),db=opt?Math.abs(b-opt):Math.abs(b-base);return da-db;});for(const size of proposed){for(const subset of combinations(remaining.filter(x=>x!==anchor),size-1)){const members=[anchor,...subset];if(!members.every(pid=>preference(pid,game.id).want))continue;if(!members.some(pid=>preference(pid,game.id).know))continue;const rest=remaining.filter(x=>!members.includes(x));const knowsCount=members.reduce((sum,pid)=>sum+(preference(pid,game.id).know?1:0),0);const compositionPenalty=opt?Math.abs(size-opt)*12:Math.abs(size-base)*2;const groupScore=members.length*10+knowsCount*1.5+(knowsCount===1?0:Math.min(2,knowsCount-1))-compositionPenalty;assign(rest,[...groups,{game,people:members}],new Set([...usedGames,game.id]),score+groupScore);if(examined>=MAX_EXAMINED)return;}}}}
-assign(ids,[],new Set(),0);if(!candidates.length){showError('Не удалось распределить всех проголосовавших участников: каждый участник должен поставить ♡ выбранной игре, а в каждой группе нужен хотя бы один знаток правил ✓. Проверьте отметки, оптимальный состав игр и число активных игр.');return;}candidates.sort((a,b)=>b.score-a.score);let pool=candidates.filter(c=>!seenGeneratedSignatures.includes(c.signature));if(pool.length<Math.min(5,candidates.length)){seenGeneratedSignatures=[];pool=candidates.slice();}const chosen=pool.slice(0,5);chosen.forEach(c=>seenGeneratedSignatures.push(c.signature));lastGeneratedSignature=chosen.length?chosen[chosen.length-1].signature:null;renderResult(chosen,examined,people,preference);}
+function generate(){
+ const games=state.games.filter(g=>g.active),
+       preference=(pid,gid)=>state.marks[key(pid,gid)]||{},
+       people=state.people.filter(p=>games.some(g=>preference(p.id,g.id).want));
+ if(people.length<2){showError('Для подбора нужно минимум два участника, каждый должен поставить ♡ хотя бы одной активной игре. Участники без голосов не участвуют.');return;}
+ if(!games.length){showError('Нет активных игр для подбора.');return;}
+ const ids=people.map(p=>p.id),base=people.length/Math.min(state.mode,people.length,games.length);
+ const MAX_EXAMINED=180000,MAX_CANDIDATES=1800;
+ let chosenTableCount=0,candidates=[],examined=0;
+
+ function durationScore(groups){
+  let score=0;
+  for(let i=0;i<groups.length;i++)for(let j=i+1;j<groups.length;j++){
+   const a=groups[i].game.duration,b=groups[j].game.duration;
+   if(!a||!b)continue;
+   if(a==='variable'||b==='variable'||a===b)score+=5;else score-=9;
+  }
+  return score;
+ }
+
+ // Сначала пробуем близкие к оптимуму размеры; если этого недостаточно,
+ // ослабляем пожелания по составу. В обоих проходах распределяются ВСЕ голоса.
+ function runSearch(tableCount,relaxed){
+  let found=[];
+  examined=0;
+  function assign(remaining,groups,usedGames,score){
+   if(examined>=MAX_EXAMINED)return;
+   if(groups.length===tableCount){
+    examined++;
+    const copy=groups.map(x=>({...x,people:x.people.slice()}));
+    const signature=planSignature(copy);
+    found.push({groups:copy,score:score+durationScore(copy),signature,gameIds:copy.map(x=>x.game.id)});
+    if(found.length>MAX_CANDIDATES*2){
+     found.sort((a,b)=>b.score-a.score);
+     found.length=MAX_CANDIDATES;
+    }
+    return;
+   }
+   const remainingTables=tableCount-groups.length,anchor=remaining[0];
+   for(const game of games){
+    if(examined>=MAX_EXAMINED)return;
+    if(usedGames.has(game.id))continue;
+    const opt=Number(game.optimalPlayers)||0;
+    let proposed;
+    if(relaxed){
+     proposed=Array.from({length:remaining.length-remainingTables+1},(_,i)=>i+1);
+    } else {
+     proposed=opt?[opt,opt-1,opt+1,...(opt===3?[4]:[]),Math.round(ids.length/tableCount),Math.floor(ids.length/tableCount),Math.ceil(ids.length/tableCount)]
+                 :[Math.round(ids.length/tableCount),Math.floor(ids.length/tableCount),Math.ceil(ids.length/tableCount)];
+    }
+    proposed=[...new Set(proposed)].filter(size=>size>=1&&size<=remaining.length-(remainingTables-1));
+    proposed.sort((a,b)=>{
+     const da=opt?Math.abs(a-opt):Math.abs(a-ids.length/tableCount);
+     const db=opt?Math.abs(b-opt):Math.abs(b-ids.length/tableCount);
+     return da-db;
+    });
+    for(const size of proposed){
+     for(const subset of combinations(remaining.filter(x=>x!==anchor),size-1)){
+      const members=[anchor,...subset];
+      if(!members.every(pid=>preference(pid,game.id).want))continue;
+      if(!members.some(pid=>preference(pid,game.id).know))continue;
+      const rest=remaining.filter(x=>!members.includes(x));
+      const knowsCount=members.reduce((sum,pid)=>sum+(preference(pid,game.id).know?1:0),0);
+      const compositionPenalty=opt?Math.abs(size-opt)*(relaxed?5:12):Math.abs(size-ids.length/tableCount)*2;
+      const groupScore=members.length*10+knowsCount*1.5+(knowsCount===1?0:Math.min(2,knowsCount-1))-compositionPenalty;
+      assign(rest,[...groups,{game,people:members}],new Set([...usedGames,game.id]),score+groupScore);
+      if(examined>=MAX_EXAMINED)return;
+     }
+    }
+   }
+  }
+  assign(ids,[],new Set(),0);
+  return found;
+ }
+
+ // Если заданное число столов не позволяет распределить всех проголосовавших,
+ // автоматически пробуем меньше столов, вплоть до одного.
+ const requested=Math.min(state.mode,people.length,games.length);
+ for(let count=requested;count>=1;count--){
+  let found=runSearch(count,false);
+  if(!found.length)found=runSearch(count,true);
+  if(found.length){chosenTableCount=count;candidates=found;break;}
+ }
+ if(!candidates.length){
+  showError('Не удалось распределить всех проголосовавших даже после ослабления оптимального состава. Для каждого стола нужна активная игра, за которую проголосовали все участники этого стола, и хотя бы один знаток правил 📖. Проверьте голоса и отметки знания правил.');
+  return;
+ }
+ candidates.sort((a,b)=>b.score-a.score);
+ // Не повторяем точные раскладки. При выборе до пяти вариантов в первую очередь
+ // берём игры, которые реже встречались в уже показанных раскладках.
+ let pool=candidates.filter(c=>!seenGeneratedSignatures.includes(c.signature));
+ if(!pool.length){seenGeneratedSignatures=[];shownGameCounts={};pool=candidates.slice();}
+ const selected=[],working=pool.slice(),batchCounts={};
+ while(selected.length<5&&working.length){
+  let bestIndex=0,bestReuse=Infinity,bestScore=-Infinity;
+  for(let i=0;i<working.length;i++){
+   const c=working[i];
+   const reuse=c.gameIds.reduce((sum,gid)=>sum+(shownGameCounts[gid]||0)+(batchCounts[gid]||0),0);
+   if(reuse<bestReuse||(reuse===bestReuse&&c.score>bestScore)){
+    bestIndex=i;bestReuse=reuse;bestScore=c.score;
+   }
+  }
+  const [pick]=working.splice(bestIndex,1);
+  selected.push(pick);
+  seenGeneratedSignatures.push(pick.signature);
+  pick.gameIds.forEach(gid=>batchCounts[gid]=(batchCounts[gid]||0)+1);
+ }
+ selected.forEach(c=>c.gameIds.forEach(gid=>shownGameCounts[gid]=(shownGameCounts[gid]||0)+1));
+ lastGeneratedSignature=selected.length?selected[selected.length-1].signature:null;
+ renderResult(selected,examined,people,preference);
+}
 function showError(msg){$('result').innerHTML=`<div class="notice">${esc(msg)}</div>`;}
-function renderResult(plans,examined,people,preference){$('result').innerHTML=`<div class="result-head"><div><h2 style="font:normal 23px var(--site-font-heading);margin:0">Варианты игровых планов</h2><div class="muted">Показано ${plans.length} ${plural(plans.length,'раскладка','раскладки','раскладок')} · все участники проголосовали за свою игру · в каждой группе есть знаток правил</div></div><button class="btn ghost" id="again">↻ Другие варианты</button></div>${plans.map((plan,index)=>`<section class="plan-option" style="margin-top:18px"><h3 style="font:normal 19px var(--site-font-heading);margin:0 0 10px">Вариант ${index+1}</h3><div class="groups">${plan.groups.map((g,i)=>`<article class="group-card"><div class="group-top"><span class="group-label">Стол ${i+1}</span><span class="game-tag">${esc(g.game.name)}</span></div><div class="group-note" style="margin:0 0 9px">${g.game.optimalPlayers?`Оптимально: ${g.game.optimalPlayers} чел. · `:''}${g.game.duration==='short'?'Короткая игра':g.game.duration==='normal'?'Обычная игра':g.game.duration==='variable'?'Вариативная игра':''}</div><div class="members">${g.people.map(pid=>{const p=people.find(x=>x.id===pid),know=preference(pid,g.game.id).know;return `<span class="member">${esc(p.name||'Без имени')}${know?'<small>✓ правила</small>':''}</span>`}).join('')}</div><div class="group-note">${g.people.filter(pid=>preference(pid,g.game.id).know).length} ${plural(g.people.filter(pid=>preference(pid,g.game.id).know).length,'знает','знают','знают')} правила этой игры</div></article>`).join('')}</div></section>`).join('')}<div class="muted" style="margin-top:14px">Алгоритм учитывает желаемый состав каждой игры и старается сочетать игры схожей длительности. Вариативная игра совместима и с короткой, и с обычной; две вариативные игры также хорошо сочетаются. Если подходящих раскладок меньше пяти, показаны все найденные.</div>`;$('again').onclick=generate;}
+function renderResult(plans,examined,people,preference){$('result').innerHTML=`<div class="result-head"><div><h2 style="font:normal 23px var(--site-font-heading);margin:0">Варианты игровых планов</h2><div class="muted">Показано ${plans.length} ${plural(plans.length,'раскладка','раскладки','раскладок')} · все участники проголосовали за свою игру · в каждой группе есть знаток правил</div></div><button class="btn ghost" id="again">↻ Другие варианты</button></div>${plans.map((plan,index)=>`<section class="plan-option" style="margin-top:18px"><h3 style="font:normal 19px var(--site-font-heading);margin:0 0 10px">Вариант ${index+1}</h3><div class="groups">${plan.groups.map((g,i)=>`<article class="group-card"><div class="group-top"><span class="group-label">Стол ${i+1}</span><span class="game-tag">${esc(g.game.name)}</span></div><div class="group-note" style="margin:0 0 9px">${g.game.optimalPlayers?`Оптимально: ${g.game.optimalPlayers} чел. · `:''}${g.game.duration==='short'?'Короткая игра':g.game.duration==='normal'?'Обычная игра':g.game.duration==='variable'?'Вариативная игра':''}</div><div class="members">${g.people.map(pid=>{const p=people.find(x=>x.id===pid),know=preference(pid,g.game.id).know;return `<span class="member">${esc(p.name||'Без имени')}${know?'<small>📖 правила</small>':''}</span>`}).join('')}</div><div class="group-note">${g.people.filter(pid=>preference(pid,g.game.id).know).length} ${plural(g.people.filter(pid=>preference(pid,g.game.id).know).length,'знает','знают','знают')} правила этой игры</div></article>`).join('')}</div></section>`).join('')}<div class="muted" style="margin-top:14px">Все проголосовавшие распределены. Алгоритм учитывает желаемый состав и длительность игр, ослабляя ограничение по составу при необходимости; варианты стараются использовать разные игры. Вариативная игра совместима и с короткой, и с обычной; две вариативные игры также хорошо сочетаются. Если подходящих раскладок меньше пяти, показаны все найденные.</div>`;$('again').onclick=generate;}
 function plural(n,a,b,c){return n%10===1&&n%100!==11?a:n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?b:c;}
 $('generate').onclick=generate;
 function renderAll(){renderPeople();renderGames();renderMatrix();document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('selected',+x.dataset.mode===state.mode));$('modeHint').textContent='Размеры столов могут быть разными в зависимости от оптимального состава выбранных игр.';}
 renderAll();connectSharedDatabase();
 </script></body></html>
-```

@@ -118,6 +118,11 @@ function durationPriority(groups){
  if(durations.length&&durations.every(d=>d==='variable'))return 1;
  return 2;
 }
+function durationsCompatible(groups){
+ // Короткая и обычная игры не могут находиться в одной раскладке.
+ const types=groups.map(g=>g.game.duration);
+ return !(types.includes('short')&&types.includes('normal'));
+}
 function candidateOrder(a,b){return durationPriority(a.groups)-durationPriority(b.groups)||b.score-a.score;}
 function selectPlans(candidates,oneTable=false){
  // В многопользовательском режиме сначала до четырёх вариантов только с обычными
@@ -192,6 +197,7 @@ function generate(){
    if(groups.length===tableCount){
     examined++;
     const copy=groups.map(x=>({...x,people:x.people.slice()}));
+    if(!durationsCompatible(copy))return;
     const signature=planSignature(copy);
     found.push({groups:copy,score:score+durationScore(copy),signature,gameIds:copy.map(x=>x.game.id)});
     if(found.length>MAX_CANDIDATES*2){
@@ -208,6 +214,8 @@ function generate(){
    for(const game of games){
     if(examined>=MAX_EXAMINED)return;
     if(usedGames.has(game.id))continue;
+    // Запрещаем сочетание короткой и обычной игры для любого числа столов.
+    if(!durationsCompatible([...groups,{game}]))continue;
     const opt=Number(game.optimalPlayers)||0;
     let proposed;
     if(relaxed){

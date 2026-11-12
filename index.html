@@ -51,6 +51,36 @@ th:first-child{background:#E7EFE3}
 .sync-status.error{background:#F8E8E3;color:#8D3027}
 @media(max-width:760px){.muted{font-size:14px}}
 
+
+/* Sticky participant names while scrolling the voting matrix */
+#matrix.table-wrap{
+  max-height:min(72vh,760px);
+  overflow:auto;
+  position:relative;
+  overscroll-behavior:contain;
+}
+#matrix table{border-collapse:separate;border-spacing:0}
+#matrix thead th{
+  position:sticky;
+  top:0;
+  z-index:5;
+  background:#E7EFE3;
+  box-shadow:0 1px 0 #AABBAA;
+}
+#matrix thead th:first-child{
+  position:sticky;
+  top:0;
+  left:0;
+  z-index:7;
+  background:#E7EFE3;
+}
+#matrix tbody td:first-child{
+  position:sticky;
+  left:0;
+  z-index:3;
+  background:#FFFFFF;
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./config.js"></script>

@@ -119,17 +119,18 @@ function durationPriority(groups){
  return 2;
 }
 function candidateOrder(a,b){return durationPriority(a.groups)-durationPriority(b.groups)||b.score-a.score;}
-function selectPlans(candidates){
- // Первые три — по возможности полностью обычные игры; далее полностью вариативные,
- // затем остальные комбинации. Внутри категории учитываем разнообразие игр и оценку.
+function selectPlans(candidates,oneTable=false){
+ // В многопользовательском режиме сначала до четырёх вариантов только с обычными
+ // играми, затем другие комбинации без приоритета типа длительности.
+ // Если других комбинаций недостаточно, свободные места дополняем обычными.
  const unseen=candidates.filter(c=>!seenGeneratedSignatures.includes(c.signature));
- if(!unseen.length){resetGeneratedHistory();}
+ if(!unseen.length)resetGeneratedHistory();
  const working=(unseen.length?unseen:candidates).slice(),selected=[],batchCounts={};
- function takeFromPriority(priority,limit){
+ function takeMatching(predicate,limit){
   while(selected.length<limit){
    let bestIndex=-1,bestReuse=Infinity,bestScore=-Infinity;
    for(let i=0;i<working.length;i++){
-    const c=working[i];if(durationPriority(c.groups)!==priority)continue;
+    const c=working[i];if(!predicate(c))continue;
     const reuse=c.gameIds.reduce((sum,gid)=>sum+(shownGameCounts[gid]||0)+(batchCounts[gid]||0),0);
     if(reuse<bestReuse||(reuse===bestReuse&&c.score>bestScore)){
      bestIndex=i;bestReuse=reuse;bestScore=c.score;
@@ -141,10 +142,9 @@ function selectPlans(candidates){
    pick.gameIds.forEach(gid=>batchCounts[gid]=(batchCounts[gid]||0)+1);
   }
  }
- takeFromPriority(0,3);
- takeFromPriority(1,8);
- takeFromPriority(0,8); // Если вариативных мало, можно добавить другие обычные.
- takeFromPriority(2,8);
+ if(!oneTable)takeMatching(c=>durationPriority(c.groups)===0,4);
+ if(!oneTable)takeMatching(c=>durationPriority(c.groups)!==0,8);
+ takeMatching(()=>true,8);
  selected.forEach(c=>c.gameIds.forEach(gid=>shownGameCounts[gid]=(shownGameCounts[gid]||0)+1));
  lastGeneratedSignature=selected.length?selected[selected.length-1].signature:null;
  return selected;
@@ -163,7 +163,7 @@ function generate(){
    .map(g=>{const groups=[{game:g,people:ids.slice()}];return {groups,score:ids.filter(pid=>preference(pid,g.id).know).length,signature:planSignature(groups),gameIds:[g.id]};});
   if(!candidates.length){showError('Нет игры, за которую проголосовали все активные участники и правила которой знает хотя бы один из них.');return;}
   candidates.sort(candidateOrder);
-  renderResult(selectPlans(candidates),candidates.length,activePeople,preference);
+  renderResult(selectPlans(candidates,true),candidates.length,activePeople,preference);
   return;
  }
  if(people.length<2){showError('Для подбора нужно минимум два активных участника, каждый должен поставить ♡ хотя бы одной активной игре. Участники без голосов не участвуют.');return;}
@@ -195,8 +195,12 @@ function generate(){
     const signature=planSignature(copy);
     found.push({groups:copy,score:score+durationScore(copy),signature,gameIds:copy.map(x=>x.game.id)});
     if(found.length>MAX_CANDIDATES*2){
-     found.sort(candidateOrder);
-     found.length=MAX_CANDIDATES;
+     const keep=[];
+     for(const priority of [0,1,2]){
+      keep.push(...found.filter(c=>durationPriority(c.groups)===priority)
+       .sort((a,b)=>b.score-a.score).slice(0,Math.floor(MAX_CANDIDATES/3)));
+     }
+     found=keep;
     }
     return;
    }
@@ -252,12 +256,12 @@ function generate(){
   showError('Не удалось распределить всех проголосовавших даже после ослабления оптимального состава. Для каждого стола нужна активная игра, за которую проголосовали все участники этого стола, и хотя бы один знаток правил 📖. Проверьте голоса и отметки знания правил.');
   return;
  }
- candidates.sort(candidateOrder);
+ candidates.sort((a,b)=>b.score-a.score);
  const selected=selectPlans(candidates);
  renderResult(selected,examined,people,preference);
 }
 function showError(msg){$('result').innerHTML=`<div class="notice">${esc(msg)}</div>`;}
-function renderResult(plans,examined,people,preference){$('result').innerHTML=`<div class="result-head"><div><h2 style="font:normal 23px var(--site-font-heading);margin:0">Варианты игровых планов</h2><div class="muted">Показано ${plans.length} ${plural(plans.length,'раскладка','раскладки','раскладок')} · все участники проголосовали за свою игру · в каждой группе есть знаток правил</div></div><button class="btn ghost" id="again">↻ Другие варианты</button></div>${plans.map((plan,index)=>`<section class="plan-option" style="margin-top:18px"><h3 style="font:normal 19px var(--site-font-heading);margin:0 0 10px">Вариант ${index+1}</h3><div class="groups">${plan.groups.map((g,i)=>`<article class="group-card"><div class="group-top"><span class="group-label">Стол ${i+1}</span><span class="game-tag">${esc(g.game.name)}</span></div><div class="group-note" style="margin:0 0 9px">${g.game.optimalPlayers?`Оптимально: ${g.game.optimalPlayers} чел. · `:''}${g.game.duration==='short'?'Короткая игра':g.game.duration==='normal'?'Обычная игра':g.game.duration==='variable'?'Вариативная игра':''}</div><div class="members">${g.people.map(pid=>{const p=people.find(x=>x.id===pid),know=preference(pid,g.game.id).know;return `<span class="member">${esc(p.name||'Без имени')}${know?'<small>📖 правила</small>':''}</span>`}).join('')}</div><div class="group-note">${g.people.filter(pid=>preference(pid,g.game.id).know).length} ${plural(g.people.filter(pid=>preference(pid,g.game.id).know).length,'знает','знают','знают')} правила этой игры</div></article>`).join('')}</div></section>`).join('')}<div class="muted" style="margin-top:14px">${state.mode===1?'В режиме одного стола все активные участники проголосовали за общую игру, а хотя бы один знает правила. Оптимальный состав не учитывается.':'Все активные проголосовавшие распределены. Алгоритм учитывает желаемый состав и длительность игр, ослабляя ограничение по составу при необходимости; варианты стараются использовать разные игры. Приоритет: до трёх раскладок из обычных игр, затем вариативные, затем остальные.'} Если подходящих раскладок меньше восьми, показаны все найденные.</div>`;$('again').onclick=generate;}
+function renderResult(plans,examined,people,preference){$('result').innerHTML=`<div class="result-head"><div><h2 style="font:normal 23px var(--site-font-heading);margin:0">Варианты игровых планов</h2><div class="muted">Показано ${plans.length} ${plural(plans.length,'раскладка','раскладки','раскладок')} · все участники проголосовали за свою игру · в каждой группе есть знаток правил</div></div><button class="btn ghost" id="again">↻ Другие варианты</button></div>${plans.map((plan,index)=>`<section class="plan-option" style="margin-top:18px"><h3 style="font:normal 19px var(--site-font-heading);margin:0 0 10px">Вариант ${index+1}</h3><div class="groups">${plan.groups.map((g,i)=>`<article class="group-card"><div class="group-top"><span class="group-label">Стол ${i+1}</span><span class="game-tag">${esc(g.game.name)}</span></div><div class="group-note" style="margin:0 0 9px">${g.game.optimalPlayers?`Оптимально: ${g.game.optimalPlayers} чел. · `:''}${g.game.duration==='short'?'Короткая игра':g.game.duration==='normal'?'Обычная игра':g.game.duration==='variable'?'Вариативная игра':''}</div><div class="members">${g.people.map(pid=>{const p=people.find(x=>x.id===pid),know=preference(pid,g.game.id).know;return `<span class="member">${esc(p.name||'Без имени')}${know?'<small>📖 правила</small>':''}</span>`}).join('')}</div><div class="group-note">${g.people.filter(pid=>preference(pid,g.game.id).know).length} ${plural(g.people.filter(pid=>preference(pid,g.game.id).know).length,'знает','знают','знают')} правила этой игры</div></article>`).join('')}</div></section>`).join('')}<div class="muted" style="margin-top:14px">${state.mode===1?'В режиме одного стола все активные участники проголосовали за общую игру, а хотя бы один знает правила. Оптимальный состав не учитывается.':'Все активные проголосовавшие распределены. Алгоритм учитывает желаемый состав и длительность игр, ослабляя ограничение по составу при необходимости; варианты стараются использовать разные игры. Приоритет: первые четыре раскладки по возможности состоят только из обычных игр; далее — любые другие сочетания, включая вариативные, короткие и смешанные.'} Если подходящих раскладок меньше восьми, показаны все найденные.</div>`;$('again').onclick=generate;}
 function plural(n,a,b,c){return n%10===1&&n%100!==11?a:n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?b:c;}
 $('generate').onclick=generate;
 function renderAll(){renderPeople();renderGames();renderMatrix();document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('selected',+x.dataset.mode===state.mode));updateModeHint();}
